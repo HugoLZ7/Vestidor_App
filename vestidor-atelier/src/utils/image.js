@@ -12,7 +12,7 @@ export function validateFiles(files) {
 }
 
 // Reduce y convierte a WebP para ahorrar almacenamiento. Si falla, sube el original.
-export async function compressImage(file, max = 1600, quality = 0.85) {
+export async function compressImage(file, max = 1200, quality = 0.82) {
   try {
     const bmp = await createImageBitmap(file)
     const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))

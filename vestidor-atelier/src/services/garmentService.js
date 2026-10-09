@@ -9,11 +9,34 @@ export async function listGarments() {
   return data
 }
 
-export async function signPaths(paths, expires = 3600) {
+// Las URLs firmadas se guardan en localStorage y se reutilizan: así la URL no cambia entre visitas
+// y el navegador puede servir las fotos desde su caché en lugar de descargarlas otra vez.
+const CACHE_KEY = 'atelier-url-cache'
+const TTL = 7 * 24 * 3600 // 7 días
+const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {} } catch (_) { return {} } }
+export const clearUrlCache = () => { try { localStorage.removeItem(CACHE_KEY) } catch (_) { /* nada */ } }
+
+export async function signPaths(paths) {
   if (!paths.length) return {}
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, expires)
-  if (error) throw error
-  return Object.fromEntries(data.filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]))
+  const now = Date.now() / 1000
+  const cache = readCache()
+  const result = {}
+  const missing = []
+  for (const p of paths) {
+    const c = cache[p]
+    if (c && c.exp - now > 86400) result[p] = c.url
+    else missing.push(p)
+  }
+  if (missing.length) {
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(missing, TTL)
+    if (error) throw error
+    for (const d of data) {
+      if (d.signedUrl) { result[d.path] = d.signedUrl; cache[d.path] = { url: d.signedUrl, exp: now + TTL } }
+    }
+    for (const k of Object.keys(cache)) if (cache[k].exp < now) delete cache[k]
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)) } catch (_) { /* sin espacio */ }
+  }
+  return result
 }
 
 export async function uploadGarment({ userId, file, category, name }) {
@@ -21,7 +44,7 @@ export async function uploadGarment({ userId, file, category, name }) {
   const path = `${userId}/garments/${crypto.randomUUID()}.${ext}`
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
-    .upload(path, blob, { contentType: type, cacheControl: '3600', upsert: false })
+    .upload(path, blob, { contentType: type, cacheControl: '31536000', upsert: false })
   if (upErr) throw upErr
   const { data, error } = await supabase
     .from('garments')

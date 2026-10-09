@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearUrlCache } from '../services/garmentService'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -21,7 +22,7 @@ export function AuthProvider({ children }) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
-  const signOut = () => supabase.auth.signOut()
+  const signOut = () => { clearUrlCache(); return supabase.auth.signOut() }
 
   return (
     <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signIn, signOut }}>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Heart, Loader2, Save, Shuffle, X } from 'lucide-react'
+import { Eye, Heart, Loader2, Save, Shuffle, X } from 'lucide-react'
+import OutfitPreview from '../components/OutfitPreview'
 import GarmentCarousel from '../components/GarmentCarousel'
 import LoadingState from '../components/LoadingState'
 import EmptyState from '../components/EmptyState'
@@ -21,6 +22,7 @@ export default function TodayOutfit() {
   const [favorite, setFavorite] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const loadedFor = useRef(null)
 
   const byCat = useMemo(
@@ -28,6 +30,18 @@ export default function TodayOutfit() {
     [garments],
   )
   const current = (cat) => byCat[cat].find((g) => g.id === sel[cat]) || byCat[cat][0] || null
+
+  // Precarga la prenda anterior y la siguiente de cada categoría para que el cambio sea instantáneo
+  useEffect(() => {
+    CATEGORIES.forEach(({ key }) => {
+      const list = byCat[key]
+      if (list.length < 2) return
+      const idx = Math.max(0, list.findIndex((g) => g.id === sel[key]))
+      ;[list[(idx + 1) % list.length], list[(idx - 1 + list.length) % list.length]].forEach((g) => {
+        if (g?.url) new Image().src = g.url
+      })
+    })
+  }, [byCat, sel])
 
   // Recarga un outfit guardado para editarlo
   useEffect(() => {
@@ -98,6 +112,9 @@ export default function TodayOutfit() {
           className={`grid h-12 w-12 place-items-center rounded-2xl border transition ${favorite ? 'border-rosa bg-rosa/15 text-rosa' : 'border-line bg-panel text-mute hover:text-rosa'}`}>
           <Heart className={`h-5 w-5 ${favorite ? 'fill-rosa' : ''}`} />
         </button>
+        <button onClick={() => setPreviewing(true)} aria-label="Previsualizar outfit" className="flex h-12 w-12 items-center justify-center gap-2 rounded-2xl border border-line bg-panel text-sm font-semibold transition hover:border-morado sm:w-auto sm:px-4">
+          <Eye className="h-5 w-5" aria-hidden="true" /><span className="hidden sm:inline">Previsualizar</span>
+        </button>
         <button onClick={save} disabled={saving} className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-line bg-panel px-4 text-sm font-semibold transition hover:border-morado disabled:opacity-60">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" aria-hidden="true" />}
           <span className="sm:hidden">Guardar</span><span className="hidden sm:inline">Guardar outfit</span>
@@ -109,6 +126,9 @@ export default function TodayOutfit() {
             onMove={(d) => move(c.key, d)} onRandom={() => shuffleOne(c.key)} />
         ))}
       </div>
+      <OutfitPreview open={previewing} saving={saving} onClose={() => setPreviewing(false)}
+        onSave={async () => { await save(); setPreviewing(false) }}
+        pieces={CATEGORIES.map((c) => ({ key: c.key, label: c.short, garment: current(c.key) }))} />
     </div>
   )
 }
